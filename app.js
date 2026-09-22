@@ -185,6 +185,8 @@ function spawnRow() {
 function fillBelt() {
   if (fillTimer) return;
   const top = lane.lastElementChild;
+  // The next customer's groceries wait until this customer's divider is gone
+  if (top?.classList.contains("divider")) return;
   const free = top ? top.offsetTop : lane.clientHeight;
   if (free < ROOM_FOR_ROW) return;
   spawnRow();
