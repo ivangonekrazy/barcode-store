@@ -58,17 +58,6 @@ main {
 #belt.moving { animation: belt .35s linear infinite; }
 @keyframes belt { to { background-position: 0 0, 0 42px; } }
 
-/* Plain steel stop bar where the piles come to rest */
-#belt::after {
-  content: "";
-  position: absolute;
-  left: 0; right: 0;
-  bottom: calc(var(--stop) - 10px);
-  height: 10px;
-  background: #9aa0a6;
-  pointer-events: none;
-}
-
 #lane {
   position: absolute;
   inset: 0 0 var(--stop);
