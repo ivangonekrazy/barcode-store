@@ -64,8 +64,8 @@ main {
   display: flex;
   flex-direction: column-reverse;         /* first row = bottom = cashier end */
   justify-content: flex-start;
-  gap: 18px;
-  padding: 12px 12px 34px;                /* clearance so tilted cards don't hit the stop bar */
+  gap: 30px;
+  padding: 12px 22px 34px;                /* clearance so tilted cards don't hit the stop bar */
 }
 .row { flex: none; }
 .pile {
@@ -73,7 +73,7 @@ main {
   flex-wrap: wrap;
   justify-content: center;
   align-items: center;
-  gap: 10px 14px;
+  gap: 22px 28px;
 }
 
 .bar {
@@ -211,7 +211,7 @@ main {
 
 /* ---- Grocery cards ---- */
 .tag {
-  width: 200px;
+  width: 240px;
   background: #fff;               /* scanners need plain white behind bars */
   border: 4px solid #222;
   border-radius: 14px;
@@ -223,7 +223,7 @@ main {
 }
 .tag svg { width: 100%; height: auto; display: block; }
 .tag svg.qr { width: 72%; margin: 0 auto 6px; }
-.tag .emoji { font-size: 1.6rem; line-height: 1.2; }
+.tag .emoji { font-size: 1.9rem; line-height: 1.2; }
 
 /* Scanned card (or used divider): a fixed-position copy hops up, then tumbles off the bottom */
 .falling {

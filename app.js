@@ -126,7 +126,7 @@ function makeTag(kind) {
 const beltEl = document.getElementById("belt");
 const lane = document.getElementById("lane");
 const CUSTOMER_ITEMS = [3, 10];     // items per customer (min, max)
-const ROOM_FOR_ROW = 200;           // px of free belt needed before the next pile rolls in
+const ROOM_FOR_ROW = 240;           // px of free belt needed before the next pile rolls in
 let itemsLeftForCustomer = randInt(...CUSTOMER_ITEMS);
 let fillTimer = null;
 let beltStopTimer = null;
