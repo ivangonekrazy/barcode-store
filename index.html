@@ -18,6 +18,7 @@
     <section id="shelf" aria-label="Barcodes to scan"></section>
 
     <aside id="register">
+      <div id="printer"><div class="slot"></div></div>
       <div id="display" class="idle">
         <div id="item-name">Scan something!</div>
         <div id="item-price">$0.00</div>
@@ -27,7 +28,11 @@
       <div id="total-row">
         <span>TOTAL</span><span id="total">$0.00</span>
       </div>
-      <button id="clear" type="button">🧾 New customer</button>
+      <div id="pay-tag" title="Scan to pay">
+        <div>💳 Scan to pay!</div>
+        <svg id="pay-barcode"></svg>
+      </div>
+      <button id="clear" type="button">🧾 Pay &amp; print receipt</button>
     </aside>
   </main>
 

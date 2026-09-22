@@ -177,6 +177,104 @@ function tone(freq, start, dur, type = "square", vol = 0.15, endFreq) {
   osc.stop(a.currentTime + start + dur + 0.02);
 }
 
+// White noise, shared by all the squishy/fart/printer sounds
+let noiseBuf;
+function noiseBuffer() {
+  const a = ctx();
+  if (!noiseBuf) {
+    noiseBuf = a.createBuffer(1, a.sampleRate * 2, a.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  }
+  return noiseBuf;
+}
+
+// Filtered voice: an oscillator (or noise if type === "noise") through a filter.
+// freq can be a number or an array of points to glide through.
+function voice({ start = 0, dur, type = "sawtooth", freq = 200, vol = 0.2,
+                 filter = "lowpass", cutoff = 2000, cutoffEnd, q = 1 }) {
+  const a = ctx(), t0 = a.currentTime + start;
+  let src;
+  if (type === "noise") {
+    src = a.createBufferSource();
+    src.buffer = noiseBuffer();
+  } else {
+    src = a.createOscillator();
+    src.type = type;
+    if (Array.isArray(freq)) src.frequency.setValueCurveAtTime(Float32Array.from(freq), t0, dur);
+    else src.frequency.setValueAtTime(freq, t0);
+  }
+  const f = a.createBiquadFilter();
+  f.type = filter;
+  f.Q.value = q;
+  f.frequency.setValueAtTime(cutoff, t0);
+  if (cutoffEnd) f.frequency.exponentialRampToValueAtTime(cutoffEnd, t0 + dur);
+  const g = a.createGain();
+  g.gain.setValueAtTime(0.001, t0);
+  g.gain.exponentialRampToValueAtTime(vol, t0 + Math.min(0.02, dur / 4));
+  g.gain.setValueAtTime(vol, t0 + dur * 0.7);
+  g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+  src.connect(f).connect(g).connect(a.destination);
+  src.start(t0);
+  src.stop(t0 + dur + 0.05);
+}
+
+// A pitch curve that wobbles around a falling line — the secret of a good fart
+function wobble(from, to, n, jitter) {
+  return Array.from({ length: n }, (_, i) =>
+    Math.max(30, from + (to - from) * (i / (n - 1)) + (Math.random() - 0.5) * jitter));
+}
+
+const SILLY = [
+  function fart(t) {
+    const dur = r(0.35, 0.9), base = r(70, 120);
+    voice({ start: t, dur, type: "sawtooth", freq: wobble(base, base * r(0.5, 0.8), 40, base * 0.6),
+            cutoff: r(300, 600), q: 4, vol: 0.5 });
+    voice({ start: t, dur, type: "noise", filter: "lowpass", cutoff: 300, vol: 0.25 });
+  },
+  function tinyFarts(t) {
+    for (let i = 0, at = t; i < 3 + Math.floor(r(0, 3)); i++) {
+      const dur = r(0.08, 0.18), base = r(90, 160);
+      voice({ start: at, dur, type: "sawtooth", freq: wobble(base, base * 0.8, 12, 40), cutoff: 500, q: 4, vol: 0.45 });
+      at += dur + r(0.03, 0.1);
+    }
+  },
+  function squish(t) {
+    voice({ start: t, dur: 0.28, type: "noise", filter: "bandpass", cutoff: r(250, 400), cutoffEnd: r(1500, 2500), q: 6, vol: 0.9 });
+    voice({ start: t + 0.02, dur: 0.18, type: "sine", freq: wobble(180, 90, 10, 30), filter: "lowpass", cutoff: 800, vol: 0.3 });
+  },
+  function slime(t) {
+    voice({ start: t, dur: 0.5, type: "noise", filter: "bandpass", cutoff: 1800, cutoffEnd: 200, q: 8, vol: 1 });
+    voice({ start: t + 0.35, dur: 0.12, type: "sine", freq: [300, 900], filter: "lowpass", cutoff: 3000, vol: 0.3 }); // bloop
+  },
+  function squeakyToy(t) {
+    const f = r(1100, 1500);
+    [0, 0.22].forEach((d) =>
+      voice({ start: t + d, dur: 0.17, type: "triangle", freq: [f, f * 1.4, f * 1.2, f * 0.9], cutoff: 5000, vol: 0.25 }));
+  },
+  function burp(t) {
+    voice({ start: t, dur: r(0.4, 0.7), type: "sawtooth", freq: wobble(r(70, 95), 60, 30, 25), cutoff: 700, q: 6, vol: 0.5 });
+  },
+  function pop(t) {
+    voice({ start: t, dur: 0.07, type: "sine", freq: [700, 120], filter: "lowpass", cutoff: 4000, vol: 0.6 });
+    voice({ start: t, dur: 0.05, type: "noise", filter: "highpass", cutoff: 2000, vol: 0.3 });
+  },
+  function raspberry(t) {
+    const dur = r(0.5, 0.8);
+    voice({ start: t, dur, type: "sawtooth", freq: wobble(r(140, 200), 130, 60, 90), cutoff: 1200, q: 3, vol: 0.35 });
+    voice({ start: t, dur, type: "noise", filter: "bandpass", cutoff: 900, q: 2, vol: 0.4 });
+  },
+  function quack(t) {
+    [0, 0.2].forEach((d) =>
+      voice({ start: t + d, dur: 0.14, type: "sawtooth", freq: [520, 480, 380], filter: "bandpass", cutoff: 1100, q: 3, vol: 0.5 }));
+  },
+  function slipAndThud(t) {
+    tone(1400, t, 0.4, "sine", 0.2, 250);
+    voice({ start: t + 0.42, dur: 0.25, type: "sine", freq: [120, 45], filter: "lowpass", cutoff: 400, vol: 0.8 });
+    voice({ start: t + 0.42, dur: 0.15, type: "noise", filter: "lowpass", cutoff: 600, vol: 0.5 });
+  },
+];
+
 const SCALE = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24]; // pentatonic-ish
 const note = (base, step) => base * Math.pow(2, step / 12);
 const WAVES = ["square", "triangle", "sawtooth", "sine"];
@@ -223,7 +321,8 @@ const JINGLES = [
 
 function playScanSound() {
   tone(1850, 0, 0.12, "square", 0.12);             // classic register beep
-  pick(Math.random, JINGLES)(0.18);                 // then a surprise
+  const pool = Math.random() < 0.5 ? SILLY : JINGLES; // half musical, half gross
+  pick(Math.random, pool)(0.18);
 }
 
 // ---- Register --------------------------------------------------------------
@@ -233,10 +332,12 @@ const priceEl = document.getElementById("item-price");
 const receipt = document.getElementById("receipt");
 const totalEl = document.getElementById("total");
 let total = 0;
+let items = [];
 let scansSinceRick = RICKROLL_COOLDOWN;
 
 function handleScan(code) {
   if (!rickEl.hidden) { rickUnmute() || closeRick(); return; }
+  if (code === CHECKOUT_CODE) { checkout(); return; }
 
   const tag = findTag(code);
   const item = itemFor(tag ? tag.dataset.code : code); // same item as the emoji on the tag
@@ -255,6 +356,7 @@ function handleScan(code) {
   while (receipt.children.length > 30) receipt.firstChild.remove();
   receipt.scrollTop = receipt.scrollHeight;
   total += item.price;
+  items.push(item);
   totalEl.textContent = money(total);
 
   if (tag) knockOff(tag);
@@ -264,6 +366,89 @@ function handleScan(code) {
     scansSinceRick = 0;
     setTimeout(rickroll, 700);
   }
+}
+
+// ---- Receipt printer ----------------------------------------------------------
+const CHECKOUT_CODE = "PAY";
+const printerEl = document.getElementById("printer");
+let printing = false;
+
+const FOOTERS = [
+  "You saved $0.00 today!", "Please come again. Or don't. We're a pretend store.",
+  "No refunds on invisible items.", "Ask about our Moon Noodle rewards card!",
+  "Cashier: a very good kid", "Items may contain traces of silliness.",
+  "Now with 30% more beeps!", "Keep this receipt forever (or 5 minutes).",
+];
+
+function printerChatter(start, dur) {
+  for (let t = 0; t < dur; t += 0.045) {   // dot-matrix zzt-zzt-zzt
+    voice({ start: start + t, dur: 0.03, type: "noise", filter: "bandpass", cutoff: r(2500, 3500), q: 3, vol: 0.5 });
+  }
+  voice({ start, dur, type: "sawtooth", freq: 95, filter: "lowpass", cutoff: 300, vol: 0.08 }); // motor hum
+}
+function tearSound(start = 0) {
+  voice({ start, dur: 0.3, type: "noise", filter: "highpass", cutoff: 1500, cutoffEnd: 5000, q: 1, vol: 0.6 });
+}
+function sadBuzz() { tone(110, 0, 0.35, "square", 0.15, 90); }
+
+function receiptLines(list) {
+  const now = new Date();
+  const subtotal = list.reduce((sum, it) => sum + it.price, 0);
+  const tax = Math.round(subtotal * 7) / 100;
+  const row = (l, rt, cls = "") => `<div class="line ${cls}"><span>${l}</span><span>${rt}</span></div>`;
+  const esc = (t) => t.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+  return [
+    `<div class="line center big">🛒 SCAN-O-MART 🛒</div>`,
+    `<div class="line center">${now.toLocaleDateString()} ${now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</div>`,
+    `<div class="line rule"></div>`,
+    ...list.map((it) => row(`${it.emoji} ${esc(it.name)}`, money(it.price))),
+    `<div class="line rule"></div>`,
+    row("SUBTOTAL", money(subtotal)),
+    row("FUN TAX 7%", money(tax)),
+    row("TOTAL", money(subtotal + tax), "big"),
+    row("PAID IN", pick(Math.random, ["HUGS", "SMILES", "PRETEND $", "JELLY BEANS", "HIGH FIVES"])),
+    `<div class="line rule"></div>`,
+    `<div class="line center">${pick(Math.random, FOOTERS)}</div>`,
+    `<div class="line center">*** THANK YOU ***</div>`,
+  ];
+}
+
+function resetRegister() {
+  receipt.innerHTML = "";
+  items = [];
+  total = 0;
+  totalEl.textContent = money(0);
+  nameEl.textContent = "Scan something!";
+  priceEl.textContent = money(0);
+}
+
+function checkout() {
+  if (printing) return;
+  if (!items.length) { sadBuzz(); nameEl.textContent = "Scan some stuff first!"; return; }
+  printing = true;
+
+  const lines = receiptLines(items);
+  resetRegister();
+  nameEl.textContent = "🧾 Printing receipt...";
+
+  const paper = document.createElement("div");
+  paper.className = "paper";
+  printerEl.appendChild(paper);
+
+  const LINE_MS = 130;
+  printerChatter(0, (lines.length * LINE_MS) / 1000);
+  lines.forEach((html, i) => setTimeout(() => {
+    paper.insertAdjacentHTML("beforeend", html);
+  }, i * LINE_MS));
+
+  // Let it hang for a moment, then rip it off and fling it away
+  setTimeout(() => {
+    tearSound();
+    paper.classList.add("torn");
+    paper.addEventListener("animationend", () => paper.remove(), { once: true });
+    nameEl.textContent = "Next customer!";
+    printing = false;
+  }, lines.length * LINE_MS + 2500);
 }
 
 // ---- Rickroll ---------------------------------------------------------------
@@ -357,13 +542,11 @@ document.getElementById("shuffle").addEventListener("click", (e) => {
   e.currentTarget.blur(); // so a scanner's Enter doesn't re-click it
 });
 document.getElementById("clear").addEventListener("click", (e) => {
-  receipt.innerHTML = "";
-  total = 0;
-  totalEl.textContent = money(0);
-  nameEl.textContent = "Scan something!";
-  priceEl.textContent = money(0);
+  checkout();
   e.currentTarget.blur();
 });
+document.getElementById("pay-tag").addEventListener("click", checkout);
+JsBarcode("#pay-barcode", CHECKOUT_CODE, { format: "CODE128", width: 4, height: 70, margin: 10, fontSize: 16 });
 
 renderShelf();
 
