@@ -229,8 +229,8 @@ function dropAway(el) {
 }
 
 // The scanned thing falls off; the belt closes the gap
-function knockOff(el, send = dropAway) {
-  send(el);
+function knockOff(el) {
+  dropAway(el);
   flip(() => {
     const row = el.closest(".row");
     el.remove();
@@ -495,8 +495,7 @@ function handleScan(code) {
   items.push(item);
   totalEl.textContent = money(total);
 
-  if (tag) knockOff(tag, (el) => flyToBag(el, item.emoji));
-  else addToBag(item.emoji); // real-world barcode: it still goes in the bag
+  if (tag) knockOff(tag);
   startAnnouncements();
   newFace();
 
@@ -569,7 +568,6 @@ function checkout() {
   resetRegister();
   nameEl.textContent = "🧾 Printing receipt...";
   openDrawer();
-  setTimeout(bagAway, 1200);
 
   const paper = document.createElement("div");
   paper.className = "paper";
@@ -631,87 +629,6 @@ function openDrawer() {
   kaChing();
   setTimeout(() => { drawerEl.classList.add("open"); moneyBurst(); }, 120);
   setTimeout(() => { drawerEl.classList.remove("open"); drawerThunk(); }, 1700);
-}
-
-// ---- Bagging area ---------------------------------------------------------------
-const bagEl = document.getElementById("bag");
-const bagContents = bagEl.querySelector(".contents");
-let bagCount = 0;
-
-function rustle(start = 0) {
-  for (let i = 0; i < 3; i++) {
-    voice({ start: start + i * r(0.03, 0.06), dur: r(0.04, 0.08), type: "noise", filter: "bandpass",
-            cutoff: r(1500, 4000), q: 2, vol: 0.35 });
-  }
-}
-function plop() {
-  rustle();
-  voice({ start: 0.02, dur: 0.12, type: "sine", freq: [110, 50], filter: "lowpass", cutoff: 400, vol: 0.6 });
-}
-
-function addToBag(emoji) {
-  bagCount++;
-  const span = document.createElement("span");
-  span.textContent = emoji;
-  bagContents.appendChild(span);
-  while (bagContents.children.length > 14) bagContents.firstChild.remove();
-  // Fuller bag: stuff pokes out higher and the bag bulges
-  bagEl.style.setProperty("--fill", Math.min(bagCount * 3, 36));
-  bagEl.style.setProperty("--bulge", Math.min(1 + bagCount * 0.012, 1.14));
-  bagEl.classList.remove("wobble");
-  void bagEl.offsetWidth;
-  bagEl.classList.add("wobble");
-  plop();
-}
-
-// A copy of the scanned card arcs over into the bag, shrinking as it goes
-function flyToBag(el, emoji) {
-  const rect = el.getBoundingClientRect();
-  const w = el.offsetWidth, h = el.offsetHeight;
-  const flyer = el.cloneNode(true);
-  flyer.classList.add("flying");
-  const left = rect.left + rect.width / 2 - w / 2, top = rect.top + rect.height / 2 - h / 2;
-  Object.assign(flyer.style, {
-    position: "fixed", margin: 0, zIndex: 6, pointerEvents: "none",
-    left: `${left}px`, top: `${top}px`, width: `${w}px`, height: `${h}px`,
-  });
-  document.body.appendChild(flyer);
-
-  const bag = bagEl.getBoundingClientRect();
-  const dx = bag.left + bag.width / 2 - (left + w / 2);
-  const dy = bag.top + 20 - (top + h / 2);
-  const rot = getComputedStyle(el).getPropertyValue("--rot") || "0deg";
-  const spin = r(-200, 200);
-  flyer.animate([
-    { transform: `rotate(${rot}) scale(1)` },
-    { transform: `translate(${dx * 0.5}px, ${Math.min(dy * 0.5, 0) - 180}px) rotate(${spin / 2}deg) scale(.6)`, offset: 0.5 },
-    { transform: `translate(${dx}px, ${dy}px) rotate(${spin}deg) scale(.12)`, opacity: 0.8 },
-  ], { duration: 700, easing: "cubic-bezier(.35, .1, .6, 1)" }).onfinish = () => {
-    flyer.remove();
-    addToBag(emoji);
-  };
-}
-
-// Customer grabs the full bag and goes; a fresh bag unfolds
-function bagAway() {
-  if (!bagCount) return;
-  rustle();
-  bagEl.animate([
-    { transform: `scaleX(${getComputedStyle(bagEl).getPropertyValue("--bulge") || 1})` },
-    { transform: "translateY(-50px) rotate(-8deg)", offset: 0.3 },
-    { transform: "translate(120vw, -30px) rotate(20deg)" },
-  ], { duration: 800, easing: "ease-in" }).onfinish = () => {
-    bagContents.innerHTML = "";
-    bagCount = 0;
-    bagEl.style.setProperty("--fill", 0);
-    bagEl.style.setProperty("--bulge", 1);
-    voice({ dur: 0.3, type: "noise", filter: "highpass", cutoff: 800, cutoffEnd: 3000, vol: 0.4 }); // fwump
-    bagEl.animate([
-      { transform: "scaleY(.05) scaleX(.6)" },
-      { transform: "scaleY(1.08) scaleX(1)", offset: 0.7 },
-      { transform: "none" },
-    ], { duration: 450, easing: "cubic-bezier(.3, 1.4, .5, 1)" });
-  };
 }
 
 // ---- Store announcements -----------------------------------------------------------
@@ -820,10 +737,26 @@ function blip(t, dur, pitch, vowel, consonant, bus) {
   }
 }
 
+// A long weary exhale into the mic before they start
+function sigh(t, bus) {
+  const a = ctx();
+  const n = a.createBufferSource(); n.buffer = noiseBuffer();
+  const f = a.createBiquadFilter(); f.type = "bandpass"; f.Q.value = 1.2;
+  f.frequency.setValueAtTime(1400, t);
+  f.frequency.exponentialRampToValueAtTime(500, t + 0.8);
+  const g = a.createGain();
+  g.gain.setValueAtTime(0.001, t);
+  g.gain.exponentialRampToValueAtTime(0.35, t + 0.15);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.8);
+  n.connect(f).connect(g).connect(bus);
+  n.start(t); n.stop(t + 0.85);
+}
+
 // Schedules the gibberish voice; returns when each word starts (seconds from t0)
 function babble(text, t0) {
   const bus = getPaBus();
-  const base = r(150, 260);            // each announcement gets its own announcer
+  const base = r(105, 150);            // low and weary
+  sigh(t0 - 0.9, bus);
   const words = text.split(/\s+/);
   const wordTimes = [];
   let t = t0;
@@ -832,16 +765,17 @@ function babble(text, t0) {
     const letters = word.toLowerCase().replace(/[^a-z]/g, "");
     const syllables = letters.match(/[^aeiouy]*[aeiouy]+(?:[^aeiouy]+$)?/g) || (letters ? [letters] : []);
     const last = wi === words.length - 1 || /[.!?]$/.test(word);
-    const excited = /!/.test(word) ? 1.15 : 1;
+    const excited = /!/.test(word) ? 1.04 : 1;  // can't muster much enthusiasm
+    const droop = 1 - 0.12 * (wi / words.length); // energy drains as they go
     syllables.forEach((syl, si) => {
-      let pitch = base * excited * r(0.9, 1.12);
-      if (last && si === syllables.length - 1) pitch *= /\?/.test(word) ? 1.3 : 0.82; // question up, statement down
-      const dur = 0.065 + Math.min(syl.length, 5) * 0.012;
+      let pitch = base * excited * droop * r(0.96, 1.04); // nearly monotone
+      if (last && si === syllables.length - 1) pitch *= /\?/.test(word) ? 1.15 : 0.8; // question up, statement down
+      const dur = (0.13 + Math.min(syl.length, 5) * 0.022) * (last && si === syllables.length - 1 ? 1.6 : 1);
       const vowel = (syl.match(/[aeiouy]/) || ["a"])[0];
       blip(t, dur, pitch, vowel, /^[^aeiouy]/.test(syl), bus);
-      t += dur + 0.018;
+      t += dur + 0.035;
     });
-    t += /[.!?]$/.test(word) ? 0.35 : /[,:;]$/.test(word) || word.endsWith("...") ? 0.22 : 0.06;
+    t += /[.!?]$/.test(word) ? 0.8 : word.endsWith("...") ? 0.9 : /[,:;]$/.test(word) ? 0.45 : 0.12;
   });
   return { wordTimes, duration: t - t0 };
 }
@@ -852,7 +786,7 @@ function announce() {
   const text = randomAnnouncement();
   const words = text.split(/\s+/);
   const a = ctx();
-  const CHIME = 1.6;
+  const CHIME = 2.6;
   chime(a.currentTime + 0.05);
   const { wordTimes, duration } = babble(text, a.currentTime + CHIME);
 
