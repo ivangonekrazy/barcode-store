@@ -42,6 +42,7 @@ main {
 
 /* ---- Conveyor belt ---- */
 #belt {
+  --stop: 32%;                              /* piles stop this far above the bottom */
   position: relative;
   height: calc(100vh - 120px);
   min-height: 420px;
@@ -57,28 +58,37 @@ main {
 #belt.moving { animation: belt .35s linear infinite; }
 @keyframes belt { to { background-position: 0 0, 0 42px; } }
 
-/* Cashier end of the belt */
+/* Cashier end: a steel stop bar, then the scanner window with its laser line */
 #belt::after {
-  content: "▼ SCAN HERE ▼";
+  content: "▲ SCAN HERE ▲";
   position: absolute;
   left: 0; right: 0; bottom: 0;
-  text-align: center;
-  font-size: .9rem;
+  height: var(--stop);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 10px;
+  font-size: 1rem;
   letter-spacing: .2em;
   color: #ff5a5f;
-  background: rgba(0,0,0,.6);
-  padding: 2px 0;
+  border-top: 10px solid #9aa0a6;
+  background:
+    linear-gradient(transparent calc(50% - 2px), rgba(255, 40, 40, .9) 50%, transparent calc(50% + 2px)),
+    radial-gradient(ellipse at 50% 50%, rgba(255, 60, 60, .25), transparent 60%),
+    linear-gradient(#1c2a33, #0d1419);
   pointer-events: none;
+  animation: laser 1.2s ease-in-out infinite alternate;
 }
+@keyframes laser { from { filter: brightness(.8); } to { filter: brightness(1.25); } }
 
 #lane {
   position: absolute;
-  inset: 0 0 22px;
+  inset: 0 0 var(--stop);
   display: flex;
   flex-direction: column-reverse;         /* first row = bottom = cashier end */
   justify-content: flex-start;
   gap: 18px;
-  padding: 12px;
+  padding: 12px 12px 34px;                /* clearance so tilted cards don't hit the stop bar */
 }
 .row { flex: none; }
 .pile {
