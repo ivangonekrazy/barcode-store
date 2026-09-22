@@ -1,6 +1,6 @@
 // ---- Settings -------------------------------------------------------------
-const RICKROLL_CHANCE = 1 / 30;     // ~3% of scans
-const RICKROLL_COOLDOWN = 10;       // no rickroll within this many scans of the last one
+const RICKROLL_CHANCE = 1 / 50;     // 2% of scans
+const RICKROLL_COOLDOWN = 15;       // no rickroll within this many scans of the last one
 const BARCODE_COUNT = 8;
 const SCAN_KEY_GAP_MS = 100;        // scanners type fast; slower keys = a human
 
@@ -364,7 +364,7 @@ function handleScan(code) {
   scansSinceRick++;
   if (scansSinceRick > RICKROLL_COOLDOWN && Math.random() < RICKROLL_CHANCE) {
     scansSinceRick = 0;
-    setTimeout(rickroll, 700);
+    setTimeout(rickroll, 500);
   }
 }
 
@@ -435,7 +435,7 @@ function checkout() {
   paper.className = "paper";
   printerEl.appendChild(paper);
 
-  const LINE_MS = 130;
+  const LINE_MS = 100;
   printerChatter(0, (lines.length * LINE_MS) / 1000);
   lines.forEach((html, i) => setTimeout(() => {
     paper.insertAdjacentHTML("beforeend", html);
@@ -448,7 +448,7 @@ function checkout() {
     paper.addEventListener("animationend", () => paper.remove(), { once: true });
     nameEl.textContent = "Next customer!";
     printing = false;
-  }, lines.length * LINE_MS + 2500);
+  }, lines.length * LINE_MS + 1800);
 }
 
 // ---- Rickroll ---------------------------------------------------------------

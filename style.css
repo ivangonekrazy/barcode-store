@@ -64,7 +64,7 @@ main {
   margin: 0;
   z-index: 5;
   pointer-events: none;
-  animation: fall 1.1s cubic-bezier(.45, 0, .9, .6) forwards;
+  animation: fall .8s cubic-bezier(.45, 0, .9, .6) forwards;
 }
 @keyframes fall {
   0%   { transform: translate(0, 0) rotate(0); background: #d6ffd8; }
@@ -73,7 +73,7 @@ main {
 }
 
 /* Replacement drops in from above with a bounce */
-.tag.arriving { animation: arrive .7s .35s cubic-bezier(.3, 1.5, .6, 1) backwards; }
+.tag.arriving { animation: arrive .5s .25s cubic-bezier(.3, 1.5, .6, 1) backwards; }
 @keyframes arrive {
   0%   { transform: translateY(-120px) scale(.6) rotate(-8deg); opacity: 0; }
   100% { transform: none; opacity: 1; }
@@ -99,7 +99,7 @@ main {
 }
 #item-name { font-size: 1.4rem; min-height: 3.4rem; }
 #item-price { font-size: 2.6rem; text-align: right; font-weight: bold; }
-#display.flash { animation: flash .6s; }
+#display.flash { animation: flash .45s; }
 @keyframes flash {
   0% { background: #6dff6d; color: #0b3d0b; transform: scale(1.04); }
   100% { background: #0b3d0b; }
@@ -196,13 +196,13 @@ main {
     40% calc(100% - 8px), 35% 100%, 30% calc(100% - 8px), 25% 100%, 20% calc(100% - 8px), 15% 100%,
     10% calc(100% - 8px), 5% 100%, 0 calc(100% - 8px));
 }
-.paper .line { display: flex; justify-content: space-between; gap: 8px; animation: feed .12s ease-out; }
+.paper .line { display: flex; justify-content: space-between; gap: 8px; animation: feed .09s ease-out; }
 .paper .line span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .paper .center { justify-content: center; text-align: center; }
 .paper .big { font-weight: bold; font-size: 1.1rem; }
 .paper .rule { border-top: 2px dashed #999; margin: 6px 0; height: 0; }
 @keyframes feed { from { transform: translateY(-6px); opacity: 0; } }
-.paper.torn { animation: tear 1s ease-in forwards; }
+.paper.torn { animation: tear .75s ease-in forwards; }
 @keyframes tear {
   0%   { transform: none; }
   15%  { transform: translateY(12px) rotate(4deg); }
