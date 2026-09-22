@@ -229,8 +229,8 @@ function dropAway(el) {
 }
 
 // The scanned thing falls off; the belt closes the gap
-function knockOff(el) {
-  dropAway(el);
+function knockOff(el, send = dropAway) {
+  send(el);
   flip(() => {
     const row = el.closest(".row");
     el.remove();
@@ -495,7 +495,9 @@ function handleScan(code) {
   items.push(item);
   totalEl.textContent = money(total);
 
-  if (tag) knockOff(tag);
+  if (tag) knockOff(tag, (el) => flyToBag(el, item.emoji));
+  else addToBag(item.emoji); // real-world barcode: it still goes in the bag
+  startAnnouncements();
   newFace();
 
   scansSinceRick++;
@@ -566,6 +568,8 @@ function checkout() {
   const lines = receiptLines(items);
   resetRegister();
   nameEl.textContent = "🧾 Printing receipt...";
+  openDrawer();
+  setTimeout(bagAway, 1200);
 
   const paper = document.createElement("div");
   paper.className = "paper";
@@ -585,6 +589,292 @@ function checkout() {
     nameEl.textContent = "Next customer!";
     printing = false;
   }, lines.length * LINE_MS + 1800);
+}
+
+// ---- Cash drawer --------------------------------------------------------------
+const drawerEl = document.getElementById("drawer");
+
+function kaChing() {
+  // drawer slides out...
+  voice({ dur: 0.18, type: "noise", filter: "lowpass", cutoff: 1800, cutoffEnd: 500, vol: 0.5 });
+  // ..."cha"...
+  voice({ start: 0.12, dur: 0.06, type: "noise", filter: "highpass", cutoff: 5000, vol: 0.5 });
+  // ..."CHING!" (a bell: a few bright partials ringing out)
+  for (const [f, v] of [[2093, 0.18], [2637, 0.12], [4186, 0.06], [3136, 0.08]]) tone(f, 0.18, 1.1, "sine", v);
+}
+function drawerThunk() {
+  voice({ dur: 0.14, type: "sine", freq: [140, 55], filter: "lowpass", cutoff: 500, vol: 0.7 });
+  voice({ dur: 0.08, type: "noise", filter: "lowpass", cutoff: 900, vol: 0.4 });
+}
+
+// Coins and bills burst out of the drawer
+function moneyBurst() {
+  const rect = drawerEl.getBoundingClientRect();
+  for (let i = 0; i < 10; i++) {
+    const m = document.createElement("div");
+    m.className = "money";
+    m.textContent = pick(Math.random, ["🪙", "🪙", "🪙", "💵", "💶", "💰"]);
+    m.style.left = `${rect.left + rect.width / 2 - 16}px`;
+    m.style.top = `${rect.top}px`;
+    document.body.appendChild(m);
+    const dx = r(-220, 220), up = r(120, 280), spin = r(-540, 540);
+    m.animate([
+      { transform: "translate(0, 0) rotate(0)" },
+      { transform: `translate(${dx * 0.5}px, ${-up}px) rotate(${spin / 2}deg)`, offset: 0.4 },
+      { transform: `translate(${dx}px, ${up * 0.6}px) rotate(${spin}deg)`, opacity: 0 },
+    ], { duration: r(900, 1300), easing: "cubic-bezier(.2, .6, .5, 1)", delay: i * 30 })
+      .onfinish = () => m.remove();
+  }
+}
+
+function openDrawer() {
+  kaChing();
+  setTimeout(() => { drawerEl.classList.add("open"); moneyBurst(); }, 120);
+  setTimeout(() => { drawerEl.classList.remove("open"); drawerThunk(); }, 1700);
+}
+
+// ---- Bagging area ---------------------------------------------------------------
+const bagEl = document.getElementById("bag");
+const bagContents = bagEl.querySelector(".contents");
+let bagCount = 0;
+
+function rustle(start = 0) {
+  for (let i = 0; i < 3; i++) {
+    voice({ start: start + i * r(0.03, 0.06), dur: r(0.04, 0.08), type: "noise", filter: "bandpass",
+            cutoff: r(1500, 4000), q: 2, vol: 0.35 });
+  }
+}
+function plop() {
+  rustle();
+  voice({ start: 0.02, dur: 0.12, type: "sine", freq: [110, 50], filter: "lowpass", cutoff: 400, vol: 0.6 });
+}
+
+function addToBag(emoji) {
+  bagCount++;
+  const span = document.createElement("span");
+  span.textContent = emoji;
+  bagContents.appendChild(span);
+  while (bagContents.children.length > 14) bagContents.firstChild.remove();
+  // Fuller bag: stuff pokes out higher and the bag bulges
+  bagEl.style.setProperty("--fill", Math.min(bagCount * 3, 36));
+  bagEl.style.setProperty("--bulge", Math.min(1 + bagCount * 0.012, 1.14));
+  bagEl.classList.remove("wobble");
+  void bagEl.offsetWidth;
+  bagEl.classList.add("wobble");
+  plop();
+}
+
+// A copy of the scanned card arcs over into the bag, shrinking as it goes
+function flyToBag(el, emoji) {
+  const rect = el.getBoundingClientRect();
+  const w = el.offsetWidth, h = el.offsetHeight;
+  const flyer = el.cloneNode(true);
+  flyer.classList.add("flying");
+  const left = rect.left + rect.width / 2 - w / 2, top = rect.top + rect.height / 2 - h / 2;
+  Object.assign(flyer.style, {
+    position: "fixed", margin: 0, zIndex: 6, pointerEvents: "none",
+    left: `${left}px`, top: `${top}px`, width: `${w}px`, height: `${h}px`,
+  });
+  document.body.appendChild(flyer);
+
+  const bag = bagEl.getBoundingClientRect();
+  const dx = bag.left + bag.width / 2 - (left + w / 2);
+  const dy = bag.top + 20 - (top + h / 2);
+  const rot = getComputedStyle(el).getPropertyValue("--rot") || "0deg";
+  const spin = r(-200, 200);
+  flyer.animate([
+    { transform: `rotate(${rot}) scale(1)` },
+    { transform: `translate(${dx * 0.5}px, ${Math.min(dy * 0.5, 0) - 180}px) rotate(${spin / 2}deg) scale(.6)`, offset: 0.5 },
+    { transform: `translate(${dx}px, ${dy}px) rotate(${spin}deg) scale(.12)`, opacity: 0.8 },
+  ], { duration: 700, easing: "cubic-bezier(.35, .1, .6, 1)" }).onfinish = () => {
+    flyer.remove();
+    addToBag(emoji);
+  };
+}
+
+// Customer grabs the full bag and goes; a fresh bag unfolds
+function bagAway() {
+  if (!bagCount) return;
+  rustle();
+  bagEl.animate([
+    { transform: `scaleX(${getComputedStyle(bagEl).getPropertyValue("--bulge") || 1})` },
+    { transform: "translateY(-50px) rotate(-8deg)", offset: 0.3 },
+    { transform: "translate(120vw, -30px) rotate(20deg)" },
+  ], { duration: 800, easing: "ease-in" }).onfinish = () => {
+    bagContents.innerHTML = "";
+    bagCount = 0;
+    bagEl.style.setProperty("--fill", 0);
+    bagEl.style.setProperty("--bulge", 1);
+    voice({ dur: 0.3, type: "noise", filter: "highpass", cutoff: 800, cutoffEnd: 3000, vol: 0.4 }); // fwump
+    bagEl.animate([
+      { transform: "scaleY(.05) scaleX(.6)" },
+      { transform: "scaleY(1.08) scaleX(1)", offset: 0.7 },
+      { transform: "none" },
+    ], { duration: 450, easing: "cubic-bezier(.3, 1.4, .5, 1)" });
+  };
+}
+
+// ---- Store announcements -----------------------------------------------------------
+// A "ding-dong" chime, then a made-up announcer voice (Animal Crossing / Simlish
+// style: one vowel-shaped blip per syllable) through a tinny PA with big-store reverb.
+const ANNOUNCE_EVERY = [40, 110];    // seconds between announcements (min, max)
+const subtitlesEl = document.getElementById("subtitles");
+let announceTimer = null;
+let paBus = null;
+
+const ANNOUNCEMENTS = [
+  "Clean-up on aisle five. Someone dropped the Moon Noodles.",
+  "Attention shoppers: the Dino Nuggets have escaped. Please do not feed them.",
+  "Will the owner of a blue shopping cart please come get it. It misses you.",
+  "Today only: buy one Pickle Bubblegum, get one... also Pickle Bubblegum.",
+  "Attention shoppers, the store is closing in five minutes. Just kidding! We never close.",
+  "Could Grandma please come to the front? Grandma to the front, please.",
+  "Reminder: please do not ride the conveyor belt. That means you, Kevin.",
+  "Lost child at customer service. He says his name is Captain Crunkle.",
+  "Special in the frozen aisle: slightly less frozen Ice Pops.",
+  "Attention: a rubber duck is loose in produce. Approach with caution.",
+  "The cashier on lane one is doing a GREAT job. Let's hear it for the cashier!",
+  "Attention shoppers: the floor is lava in aisle seven. Please hop carefully.",
+  "Would the person who ordered forty pounds of Slime please pick it up. It's... moving.",
+  "Now playing on aisle nine: absolutely nothing. Enjoy the silence.",
+  "Free samples of Broccoli Toothpaste by the bakery. Nobody wants them. Please help.",
+  "Attention shoppers: our bananas are now extra bendy. At no extra cost.",
+];
+const randomAnnouncement = () => Math.random() < 0.25
+  ? `Price check on ${itemFor(randomDigits(12)).name.replace(/,.*/, "")}. Price check, please.`
+  : pick(Math.random, ANNOUNCEMENTS);
+
+// Tinny speaker (band-limited + a little crunch) feeding a long, echoey reverb
+function getPaBus() {
+  if (paBus) return paBus;
+  const a = ctx();
+  const input = a.createGain();
+  const hp = a.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 350;
+  const lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 3200;
+  const crunch = a.createWaveShaper();
+  crunch.curve = Float32Array.from({ length: 256 }, (_, i) => Math.tanh(((i / 255) * 2 - 1) * 2.5));
+  const dry = a.createGain(); dry.gain.value = 0.7;
+  const wet = a.createGain(); wet.gain.value = 0.55;
+  const verb = a.createConvolver();
+  const len = Math.floor(a.sampleRate * 2.8);
+  const ir = a.createBuffer(2, len, a.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = ir.getChannelData(ch);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+  }
+  verb.buffer = ir;
+  input.connect(hp).connect(lp).connect(crunch);
+  crunch.connect(dry).connect(a.destination);
+  crunch.connect(verb).connect(wet).connect(a.destination);
+  return (paBus = input);
+}
+
+function chime(t0) {
+  const a = ctx(), bus = getPaBus();
+  [659, 523, 392].forEach((f, i) => {           // E-C-G "ding-dong-dong"
+    for (const [mult, vol] of [[1, 0.35], [2, 0.08], [3, 0.04]]) {
+      const o = a.createOscillator(), g = a.createGain();
+      o.frequency.value = f * mult;
+      const t = t0 + i * 0.45;
+      g.gain.setValueAtTime(0.001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 1.2);
+      o.connect(g).connect(bus);
+      o.start(t);
+      o.stop(t + 1.3);
+    }
+  });
+}
+
+// Rough vowel formants (F1, F2) so each blip sounds like a vowel
+const FORMANTS = { a: [800, 1250], e: [500, 1900], i: [330, 2300], o: [500, 900], u: [350, 750], y: [330, 2300] };
+
+function blip(t, dur, pitch, vowel, consonant, bus) {
+  const a = ctx();
+  const [f1, f2] = FORMANTS[vowel] || FORMANTS.a;
+  const src = a.createOscillator();
+  src.type = "sawtooth";
+  src.frequency.setValueAtTime(pitch * 1.06, t);
+  src.frequency.exponentialRampToValueAtTime(pitch * 0.94, t + dur);
+  const g = a.createGain();
+  g.gain.setValueAtTime(0.001, t);
+  g.gain.exponentialRampToValueAtTime(0.5, t + 0.012);
+  g.gain.setValueAtTime(0.5, t + dur * 0.6);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  for (const [f, q, v] of [[f1, 6, 1], [f2, 9, 0.6]]) {
+    const bp = a.createBiquadFilter();
+    bp.type = "bandpass"; bp.frequency.value = f; bp.Q.value = q;
+    const fg = a.createGain(); fg.gain.value = v;
+    src.connect(bp).connect(fg).connect(g);
+  }
+  g.connect(bus);
+  src.start(t);
+  src.stop(t + dur + 0.02);
+  if (consonant) { // a little tick/hiss at the start of the syllable
+    const n = a.createBufferSource(); n.buffer = noiseBuffer();
+    const hp = a.createBiquadFilter(); hp.type = "bandpass"; hp.frequency.value = r(2500, 5000); hp.Q.value = 1.5;
+    const ng = a.createGain();
+    ng.gain.setValueAtTime(0.25, t); ng.gain.exponentialRampToValueAtTime(0.001, t + 0.025);
+    n.connect(hp).connect(ng).connect(bus);
+    n.start(t, Math.random()); n.stop(t + 0.03);
+  }
+}
+
+// Schedules the gibberish voice; returns when each word starts (seconds from t0)
+function babble(text, t0) {
+  const bus = getPaBus();
+  const base = r(150, 260);            // each announcement gets its own announcer
+  const words = text.split(/\s+/);
+  const wordTimes = [];
+  let t = t0;
+  words.forEach((word, wi) => {
+    wordTimes.push(t - t0);
+    const letters = word.toLowerCase().replace(/[^a-z]/g, "");
+    const syllables = letters.match(/[^aeiouy]*[aeiouy]+(?:[^aeiouy]+$)?/g) || (letters ? [letters] : []);
+    const last = wi === words.length - 1 || /[.!?]$/.test(word);
+    const excited = /!/.test(word) ? 1.15 : 1;
+    syllables.forEach((syl, si) => {
+      let pitch = base * excited * r(0.9, 1.12);
+      if (last && si === syllables.length - 1) pitch *= /\?/.test(word) ? 1.3 : 0.82; // question up, statement down
+      const dur = 0.065 + Math.min(syl.length, 5) * 0.012;
+      const vowel = (syl.match(/[aeiouy]/) || ["a"])[0];
+      blip(t, dur, pitch, vowel, /^[^aeiouy]/.test(syl), bus);
+      t += dur + 0.018;
+    });
+    t += /[.!?]$/.test(word) ? 0.35 : /[,:;]$/.test(word) || word.endsWith("...") ? 0.22 : 0.06;
+  });
+  return { wordTimes, duration: t - t0 };
+}
+
+function announce() {
+  // Needs sound unlocked (first scan), and don't talk over the rickroll
+  if (!audio || audio.state !== "running" || !rickEl.hidden) return;
+  const text = randomAnnouncement();
+  const words = text.split(/\s+/);
+  const a = ctx();
+  const CHIME = 1.6;
+  chime(a.currentTime + 0.05);
+  const { wordTimes, duration } = babble(text, a.currentTime + CHIME);
+
+  subtitlesEl.innerHTML = "📢 " + words.map((w) => `<span class="w"></span>`).join(" ");
+  const spans = subtitlesEl.querySelectorAll(".w");
+  spans.forEach((sp, i) => {
+    sp.textContent = words[i];
+    setTimeout(() => sp.classList.add("on"), (CHIME + wordTimes[i]) * 1000);
+  });
+  subtitlesEl.hidden = false;
+  clearTimeout(subtitlesEl._hide);
+  subtitlesEl._hide = setTimeout(() => { subtitlesEl.hidden = true; }, (CHIME + duration + 2.5) * 1000);
+}
+
+function scheduleAnnouncement() {
+  clearTimeout(announceTimer);
+  announceTimer = setTimeout(() => { announce(); scheduleAnnouncement(); }, r(...ANNOUNCE_EVERY) * 1000);
+}
+// Kick off after the first scan (browsers only allow sound after an interaction)
+function startAnnouncements() {
+  if (announceTimer) return;
+  announceTimer = setTimeout(() => { announce(); scheduleAnnouncement(); }, r(15, 30) * 1000);
 }
 
 // ---- Rickroll ---------------------------------------------------------------
@@ -716,3 +1006,4 @@ fillBelt();
 // Handy for testing: rickroll() in the console, or simulate a scan:
 window.scanTest = handleScan;
 window.rickroll = rickroll;
+window.announce = announce;
