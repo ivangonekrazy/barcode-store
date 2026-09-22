@@ -2,7 +2,6 @@
 const RICKROLL_CHANCE = 1 / 30;     // ~3% of scans
 const RICKROLL_COOLDOWN = 10;       // no rickroll within this many scans of the last one
 const BARCODE_COUNT = 8;
-const BARCODE_FORMAT = "CODE128";   // switch to "EAN13" if the scanner is picky
 const SCAN_KEY_GAP_MS = 100;        // scanners type fast; slower keys = a human
 
 // ---- Seeded random --------------------------------------------------------
@@ -72,27 +71,67 @@ const money = (n) => `$${n.toFixed(2)}`;
 const shelf = document.getElementById("shelf");
 const TAG_COLORS = ["#3fa7d6", "#59cd90", "#ee6352", "#fac05e", "#b07bd9", "#ff8fb1"];
 
-function randomCode() {
-  // 12 digits so it works for CODE128 and (with checksum added) EAN13
+function randomDigits(n) {
   let s = String(1 + Math.floor(Math.random() * 9));
-  for (let i = 0; i < 11; i++) s += Math.floor(Math.random() * 10);
+  while (s.length < n) s += Math.floor(Math.random() * 10);
   return s;
+}
+
+function ean13(twelve) {
+  const sum = [...twelve].reduce((acc, d, i) => acc + Number(d) * (i % 2 ? 3 : 1), 0);
+  return twelve + ((10 - (sum % 10)) % 10);
+}
+
+// Each kind returns the exact text the scanner will type back to us.
+// Uppercase letters + digits only, so keyboard layout can't garble QR payloads.
+const KINDS = {
+  qr:      () => "MART" + randomDigits(8),
+  code128: () => randomDigits(12),
+  ean13:   () => ean13(randomDigits(12)),
+};
+
+function drawTag(tag, kind, code) {
+  if (kind === "qr") {
+    const qr = qrcode(0, "M");
+    qr.addData(code);
+    qr.make();
+    tag.insertAdjacentHTML("beforeend", qr.createSvgTag({ cellSize: 8, margin: 4, scalable: true }));
+    tag.lastElementChild.classList.add("qr");
+  } else {
+    tag.insertAdjacentHTML("beforeend", "<svg></svg>");
+    JsBarcode(tag.lastElementChild, code, {
+      format: kind.toUpperCase(), width: 3, height: 110, margin: 16, fontSize: 18,
+    });
+  }
 }
 
 function renderShelf() {
   shelf.innerHTML = "";
-  for (let i = 0; i < BARCODE_COUNT; i++) {
-    const code = randomCode();
+  // Roughly a third QR, the rest split between 1D formats, in random order
+  const kinds = Array.from({ length: BARCODE_COUNT }, (_, i) =>
+    i % 3 === 0 ? "qr" : i % 3 === 1 ? "code128" : "ean13");
+  kinds.sort(() => Math.random() - 0.5);
+
+  kinds.forEach((kind, i) => {
+    const code = KINDS[kind]();
     const tag = document.createElement("div");
     tag.className = "tag";
     tag.dataset.code = code;
     tag.style.setProperty("--c", TAG_COLORS[i % TAG_COLORS.length]);
-    tag.innerHTML = `<div class="emoji">${itemFor(code).emoji}</div><svg></svg>`;
+    tag.innerHTML = `<div class="emoji">${itemFor(code).emoji}</div>`;
     shelf.appendChild(tag);
-    JsBarcode(tag.querySelector("svg"), code, {
-      format: BARCODE_FORMAT, width: 3, height: 110, margin: 16, fontSize: 18,
-    });
-  }
+    drawTag(tag, kind, code);
+  });
+}
+
+// Scanners sometimes add/drop a leading 0 or check digit, so match loosely
+function findTag(code) {
+  return [...shelf.children].find((t) => {
+    const c = t.dataset.code;
+    if (c === code) return true;
+    if (code.length < 10) return false;
+    return c.endsWith(code) || code.endsWith(c) || c.startsWith(code) || code.startsWith(c);
+  });
 }
 
 // ---- Sounds (Web Audio, no files) -----------------------------------------
@@ -178,7 +217,8 @@ let scansSinceRick = RICKROLL_COOLDOWN;
 function handleScan(code) {
   if (!rickEl.hidden) { closeRick(); return; }
 
-  const item = itemFor(code);
+  const tag = findTag(code);
+  const item = itemFor(tag ? tag.dataset.code : code); // same item as the emoji on the tag
   playScanSound();
 
   nameEl.textContent = `${item.emoji} ${item.name}`;
@@ -196,8 +236,6 @@ function handleScan(code) {
   total += item.price;
   totalEl.textContent = money(total);
 
-  const tag = shelf.querySelector(`[data-code="${CSS.escape(code)}"]`)
-    || [...shelf.children].find((t) => code.startsWith(t.dataset.code)); // EAN adds a check digit
   if (tag) {
     tag.classList.remove("hit");
     void tag.offsetWidth;
