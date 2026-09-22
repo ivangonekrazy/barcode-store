@@ -855,8 +855,9 @@ function babble(text, t0) {
 
 let announcing = false;
 function announce() {
-  // Needs sound unlocked (first scan), one at a time, and don't talk over the rickroll
-  if (announcing || !audio || audio.state !== "running" || !rickEl.hidden) return;
+  // Needs sound unlocked (first scan), one at a time, nobody away from the page,
+  // and don't talk over the rickroll
+  if (announcing || !audio || audio.state !== "running" || !rickEl.hidden || !pageFocused()) return;
   const text = randomAnnouncement();
   const words = text.split(/\s+/);
   const a = ctx();
@@ -998,10 +999,11 @@ window.addEventListener("keydown", (e) => {
 // ---- Focus overlay ----------------------------------------------------------------
 // The scanner types into whichever window has focus. If it isn't us, say so.
 const focusOverlay = document.getElementById("focus-overlay");
+// hasFocus() is still true when focus is inside an iframe (the YouTube player),
+// but keystrokes go to the iframe then, not to us
+const pageFocused = () => document.hasFocus() && !(document.activeElement instanceof HTMLIFrameElement);
 function checkFocus() {
-  // hasFocus() is still true when focus is inside an iframe (the YouTube player),
-  // but keystrokes go to the iframe then, not to us
-  focusOverlay.hidden = document.hasFocus() && !(document.activeElement instanceof HTMLIFrameElement);
+  focusOverlay.hidden = pageFocused();
 }
 window.addEventListener("focus", checkFocus);
 window.addEventListener("blur", checkFocus);
