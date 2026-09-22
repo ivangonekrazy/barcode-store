@@ -286,6 +286,11 @@ window.addEventListener("keydown", (e) => {
 });
 
 // ---- Buttons ----------------------------------------------------------------
+// Clicking a tag scans it (handy for testing without a scanner)
+shelf.addEventListener("click", (e) => {
+  const tag = e.target.closest(".tag");
+  if (tag) handleScan(tag.dataset.code);
+});
 document.getElementById("shuffle").addEventListener("click", (e) => {
   renderShelf();
   e.currentTarget.blur(); // so a scanner's Enter doesn't re-click it
