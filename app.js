@@ -183,7 +183,7 @@ function spawnRow() {
 
 // Keep piles coming, a little apart, while there's room at the top of the belt
 function fillBelt() {
-  if (fillTimer) return;
+  if (fillTimer || customerArriving) return;
   const top = lane.lastElementChild;
   // The next customer's groceries wait until this customer's divider is gone
   if (top?.classList.contains("divider")) return;
@@ -269,12 +269,16 @@ function showFace(animation) {
 const newFace = () => showFace("swap");
 
 // Old customer tumbles away; a new one bounces in
+// Their groceries don't start rolling in until they've arrived
+let customerArriving = false;
 function nextCustomer() {
+  customerArriving = true;
   dropAway(customerEl);
   customerEl.style.visibility = "hidden";
   setTimeout(() => {
     customerEl.style.visibility = "";
     showFace("arrive");
+    setTimeout(() => { customerArriving = false; fillBelt(); }, 600); // once the arrive bounce lands
   }, 450);
 }
 
@@ -781,15 +785,18 @@ function babble(text, t0) {
   return { wordTimes, duration: t - t0 };
 }
 
+let announcing = false;
 function announce() {
-  // Needs sound unlocked (first scan), and don't talk over the rickroll
-  if (!audio || audio.state !== "running" || !rickEl.hidden) return;
+  // Needs sound unlocked (first scan), one at a time, and don't talk over the rickroll
+  if (announcing || !audio || audio.state !== "running" || !rickEl.hidden) return;
   const text = randomAnnouncement();
   const words = text.split(/\s+/);
   const a = ctx();
   const CHIME = 2.6;
   chime(a.currentTime + 0.05);
   const { wordTimes, duration } = babble(text, a.currentTime + CHIME);
+  announcing = true;
+  setTimeout(() => { announcing = false; }, (CHIME + duration + 1.5) * 1000); // incl. reverb tail
 
   subtitlesEl.innerHTML = "📢 " + words.map((w) => `<span class="w"></span>`).join(" ");
   const spans = subtitlesEl.querySelectorAll(".w");
