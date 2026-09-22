@@ -105,23 +105,44 @@ function drawTag(tag, kind, code) {
   }
 }
 
+function makeTag(kind, color) {
+  const code = KINDS[kind]();
+  const tag = document.createElement("div");
+  tag.className = "tag";
+  tag.dataset.code = code;
+  tag.dataset.kind = kind;
+  tag.style.setProperty("--c", color);
+  tag.innerHTML = `<div class="emoji">${itemFor(code).emoji}</div>`;
+  drawTag(tag, kind, code);
+  return tag;
+}
+
 function renderShelf() {
   shelf.innerHTML = "";
   // Roughly a third QR, the rest split between 1D formats, in random order
   const kinds = Array.from({ length: BARCODE_COUNT }, (_, i) =>
     i % 3 === 0 ? "qr" : i % 3 === 1 ? "code128" : "ean13");
   kinds.sort(() => Math.random() - 0.5);
+  kinds.forEach((kind, i) => shelf.appendChild(makeTag(kind, TAG_COLORS[i % TAG_COLORS.length])));
+}
 
-  kinds.forEach((kind, i) => {
-    const code = KINDS[kind]();
-    const tag = document.createElement("div");
-    tag.className = "tag";
-    tag.dataset.code = code;
-    tag.style.setProperty("--c", TAG_COLORS[i % TAG_COLORS.length]);
-    tag.innerHTML = `<div class="emoji">${itemFor(code).emoji}</div>`;
-    shelf.appendChild(tag);
-    drawTag(tag, kind, code);
+// A copy of the scanned tag tumbles off screen; a fresh one drops into its slot
+function knockOff(tag) {
+  const rect = tag.getBoundingClientRect();
+  const faller = tag.cloneNode(true);
+  faller.classList.add("falling");
+  Object.assign(faller.style, {
+    left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px`,
   });
+  faller.style.setProperty("--spin", `${(Math.random() < 0.5 ? -1 : 1) * (25 + Math.random() * 50)}deg`);
+  faller.style.setProperty("--drift", `${(Math.random() - 0.5) * 300}px`);
+  document.body.appendChild(faller);
+  faller.addEventListener("animationend", () => faller.remove());
+
+  const fresh = makeTag(tag.dataset.kind, tag.style.getPropertyValue("--c"));
+  fresh.classList.add("arriving");
+  fresh.addEventListener("animationend", () => fresh.classList.remove("arriving"), { once: true });
+  tag.replaceWith(fresh);
 }
 
 // Scanners sometimes add/drop a leading 0 or check digit, so match loosely
@@ -236,11 +257,7 @@ function handleScan(code) {
   total += item.price;
   totalEl.textContent = money(total);
 
-  if (tag) {
-    tag.classList.remove("hit");
-    void tag.offsetWidth;
-    tag.classList.add("hit");
-  }
+  if (tag) knockOff(tag);
 
   scansSinceRick++;
   if (scansSinceRick > RICKROLL_COOLDOWN && Math.random() < RICKROLL_CHANCE) {
