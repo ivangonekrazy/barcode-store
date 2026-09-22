@@ -142,17 +142,23 @@ function flip(mutate) {
   const els = [...lane.querySelectorAll(".row, .tag")];
   const before = new Map(els.map((el) => [el, el.getBoundingClientRect()]));
   mutate();
+  let advanced = false;
   for (const el of els) {
     if (!el.isConnected) continue;
     const was = before.get(el), now = el.getBoundingClientRect();
     const dx = was.left - now.left, dy = was.top - now.top;
     if (Math.abs(dx) < 1 && Math.abs(dy) < 1) continue;
+    // A row whose bottom edge moved down slid toward the cashier. (A pile that just
+    // got shorter moves its top edge, not its bottom.)
+    if (el.classList.contains("row") && now.bottom - was.bottom > 1) advanced = true;
     el.animate(
       [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "translate(0, 0)" }],
       { duration: 450, easing: "cubic-bezier(.3, .7, .4, 1)", composite: "add" },
     );
   }
-  runBelt();
+  // Only run the belt when groceries actually ride it forward (not when a card
+  // just shuffles over inside its pile)
+  if (advanced) runBelt(450);
 }
 
 function makeRow() {
