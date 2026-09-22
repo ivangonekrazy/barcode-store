@@ -201,12 +201,10 @@ function markFront() {
   front.classList.add("ready");
   setTimeout(() => {
     if (!front.isConnected) return;
-    if (items.length) checkout();
-    setTimeout(() => {
-      if (!front.isConnected) return;
-      knockOff(front.querySelector(".bar"));
-      nextCustomer();
-    }, 900);
+    const bar = front.querySelector(".bar");
+    // Divider goes when the receipt is torn off (checkout sends the customer away then too)
+    if (items.length) checkout(() => knockOff(bar));
+    else { knockOff(bar); if (!printing) nextCustomer(); }
   }, 500);
 }
 
@@ -559,7 +557,8 @@ function resetRegister() {
   priceEl.textContent = money(0);
 }
 
-function checkout() {
+// onDone runs when the receipt is torn off and the customer leaves
+function checkout(onDone) {
   if (printing) return;
   if (!items.length) { sadBuzz(); nameEl.textContent = "Scan some stuff first!"; return; }
   printing = true;
@@ -586,6 +585,8 @@ function checkout() {
     paper.addEventListener("animationend", () => paper.remove(), { once: true });
     nameEl.textContent = "Next customer!";
     printing = false;
+    nextCustomer();       // customer takes their receipt and goes
+    onDone?.();
   }, lines.length * LINE_MS + 1800);
 }
 
