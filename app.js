@@ -202,15 +202,21 @@ function markFront() {
   setTimeout(() => {
     if (!front.isConnected) return;
     if (items.length) checkout();
-    setTimeout(() => front.isConnected && knockOff(front.querySelector(".bar")), 900);
+    setTimeout(() => {
+      if (!front.isConnected) return;
+      knockOff(front.querySelector(".bar"));
+      nextCustomer();
+    }, 900);
   }, 500);
 }
 
-// A copy of the scanned thing tumbles off screen; the belt closes the gap
-function knockOff(el) {
+// A fixed-position copy of el hops up and tumbles off the bottom of the screen
+function dropAway(el) {
   const rect = el.getBoundingClientRect();
   const w = el.offsetWidth, h = el.offsetHeight; // unrotated size
   const faller = el.cloneNode(true);
+  faller.removeAttribute("id");
+  faller.classList.remove("swap", "arrive");
   faller.classList.add("falling");
   Object.assign(faller.style, {
     left: `${rect.left + rect.width / 2 - w / 2}px`, top: `${rect.top + rect.height / 2 - h / 2}px`,
@@ -220,7 +226,11 @@ function knockOff(el) {
   faller.style.setProperty("--drift", `${r(-150, 150)}px`);
   document.body.appendChild(faller);
   faller.addEventListener("animationend", () => faller.remove());
+}
 
+// The scanned thing falls off; the belt closes the gap
+function knockOff(el) {
+  dropAway(el);
   flip(() => {
     const row = el.closest(".row");
     el.remove();
@@ -235,6 +245,7 @@ function resetBelt() {
   fillTimer = null;
   lane.innerHTML = "";
   itemsLeftForCustomer = randInt(...CUSTOMER_ITEMS);
+  nextCustomer();
   fillBelt();
 }
 
@@ -249,14 +260,42 @@ const FACES = [
   "😫", "🥱", "😤", "😡", "😠", "🤬",
 ];
 
-function newFace() {
+// The mood faces only come in yellow, so tint them: classic yellow plus five skin tones
+const SKIN_TONES = [
+  "",
+  "sepia(.35) saturate(.9) hue-rotate(-12deg) brightness(1.12)",
+  "sepia(.7) saturate(1.3) hue-rotate(-18deg) brightness(1)",
+  "sepia(1) saturate(2) hue-rotate(-26deg) brightness(.85)",
+  "sepia(1) saturate(2.3) hue-rotate(-32deg) brightness(.66)",
+  "sepia(1) saturate(2.1) hue-rotate(-36deg) brightness(.5)",
+];
+let skinTone = pick(Math.random, SKIN_TONES);
+
+function showFace(animation) {
   let face;
   do face = pick(Math.random, FACES); while (face === customerEl.textContent);
   customerEl.textContent = face;
-  customerEl.classList.remove("swap");
+  customerEl.style.filter = `${skinTone} drop-shadow(0 6px 8px rgba(0,0,0,.6))`;
+  customerEl.classList.remove("swap", "arrive");
   void customerEl.offsetWidth; // restart animation
-  customerEl.classList.add("swap");
+  customerEl.classList.add(animation);
 }
+const newFace = () => showFace("swap");
+
+// Old customer tumbles away; a new one (with a different skin tone) bounces in
+function nextCustomer() {
+  dropAway(customerEl);
+  customerEl.style.visibility = "hidden";
+  let tone;
+  do tone = pick(Math.random, SKIN_TONES); while (tone === skinTone);
+  skinTone = tone;
+  setTimeout(() => {
+    customerEl.style.visibility = "";
+    showFace("arrive");
+  }, 450);
+}
+
+showFace("arrive");
 
 // Scanners sometimes add/drop a leading 0 or check digit, so match loosely
 function findTag(code) {
