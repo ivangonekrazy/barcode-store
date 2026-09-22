@@ -238,6 +238,26 @@ function resetBelt() {
   fillBelt();
 }
 
+// ---- Customer face ---------------------------------------------------------------
+const customerEl = document.getElementById("customer");
+const FACES = [
+  "😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂", "🙂", "🙃", "😉", "😊", "😇", "🥰", "😍",
+  "🤩", "😘", "😋", "😛", "😜", "🤪", "😝", "🤑", "🤗", "🤭", "🤫", "🤔", "🤨", "😐", "😑",
+  "😶", "😏", "😒", "🙄", "😬", "😌", "😔", "😪", "🤤", "😴", "🤢", "🤮", "🤧", "🥵", "🥶",
+  "🥴", "😵", "🤯", "🤠", "🥳", "🥸", "😎", "🤓", "🧐", "😕", "😟", "🙁", "😮", "😯", "😲",
+  "😳", "🥺", "😦", "😧", "😨", "😰", "😥", "😢", "😭", "😱", "😖", "😣", "😞", "😓", "😩",
+  "😫", "🥱", "😤", "😡", "😠", "🤬",
+];
+
+function newFace() {
+  let face;
+  do face = pick(Math.random, FACES); while (face === customerEl.textContent);
+  customerEl.textContent = face;
+  customerEl.classList.remove("swap");
+  void customerEl.offsetWidth; // restart animation
+  customerEl.classList.add("swap");
+}
+
 // Scanners sometimes add/drop a leading 0 or check digit, so match loosely
 function findTag(code) {
   return [...lane.querySelectorAll(".tag")].find((t) => {
@@ -452,6 +472,7 @@ function handleScan(code) {
   totalEl.textContent = money(total);
 
   if (tag) knockOff(tag);
+  newFace();
 
   scansSinceRick++;
   if (scansSinceRick > RICKROLL_COOLDOWN && Math.random() < RICKROLL_CHANCE) {
