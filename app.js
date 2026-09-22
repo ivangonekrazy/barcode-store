@@ -1,7 +1,6 @@
 // ---- Settings -------------------------------------------------------------
 const RICKROLL_CHANCE = 1 / 50;     // 2% of scans
 const RICKROLL_COOLDOWN = 15;       // no rickroll within this many scans of the last one
-const BARCODE_COUNT = 8;
 const SCAN_KEY_GAP_MS = 100;        // scanners type fast; slower keys = a human
 
 // ---- Seeded random --------------------------------------------------------
@@ -67,9 +66,9 @@ function itemFor(code) {
 
 const money = (n) => `$${n.toFixed(2)}`;
 
-// ---- Barcode shelf ---------------------------------------------------------
-const shelf = document.getElementById("shelf");
+// ---- Barcodes ----------------------------------------------------------------
 const TAG_COLORS = ["#3fa7d6", "#59cd90", "#ee6352", "#fac05e", "#b07bd9", "#ff8fb1"];
+const randInt = (lo, hi) => lo + Math.floor(Math.random() * (hi - lo + 1));
 
 function randomDigits(n) {
   let s = String(1 + Math.floor(Math.random() * 9));
@@ -89,6 +88,7 @@ const KINDS = {
   code128: () => randomDigits(12),
   ean13:   () => ean13(randomDigits(12)),
 };
+const KIND_WEIGHTS = ["qr", "code128", "ean13"]; // one of each = a third QR
 
 function drawTag(tag, kind, code) {
   if (kind === "qr") {
@@ -100,54 +100,145 @@ function drawTag(tag, kind, code) {
   } else {
     tag.insertAdjacentHTML("beforeend", "<svg></svg>");
     JsBarcode(tag.lastElementChild, code, {
-      format: kind.toUpperCase(), width: 3, height: 110, margin: 16, fontSize: 18,
+      format: kind.toUpperCase(), width: 3, height: 100, margin: 14, fontSize: 18,
     });
   }
 }
 
-function makeTag(kind, color) {
+function makeTag(kind) {
   const code = KINDS[kind]();
   const tag = document.createElement("div");
   tag.className = "tag";
   tag.dataset.code = code;
-  tag.dataset.kind = kind;
-  tag.style.setProperty("--c", color);
+  tag.style.setProperty("--c", pick(Math.random, TAG_COLORS));
+  // Jumbled like a pile of groceries (kept mild so scanners can still read them)
+  tag.style.setProperty("--rot", `${r(-14, 14).toFixed(1)}deg`);
+  tag.style.setProperty("--dx", `${r(-14, 14).toFixed(0)}px`);
+  tag.style.setProperty("--dy", `${r(-10, 10).toFixed(0)}px`);
   tag.innerHTML = `<div class="emoji">${itemFor(code).emoji}</div>`;
   drawTag(tag, kind, code);
   return tag;
 }
 
-function renderShelf() {
-  shelf.innerHTML = "";
-  // Roughly a third QR, the rest split between 1D formats, in random order
-  const kinds = Array.from({ length: BARCODE_COUNT }, (_, i) =>
-    i % 3 === 0 ? "qr" : i % 3 === 1 ? "code128" : "ean13");
-  kinds.sort(() => Math.random() - 0.5);
-  kinds.forEach((kind, i) => shelf.appendChild(makeTag(kind, TAG_COLORS[i % TAG_COLORS.length])));
+// ---- Conveyor belt -------------------------------------------------------------
+// The lane is a column-reverse flexbox: the first row sits at the cashier end
+// (bottom) and new rows join at the top.
+const beltEl = document.getElementById("belt");
+const lane = document.getElementById("lane");
+const CUSTOMER_ITEMS = [3, 10];     // items per customer (min, max)
+const ROOM_FOR_ROW = 200;           // px of free belt needed before the next pile rolls in
+let itemsLeftForCustomer = randInt(...CUSTOMER_ITEMS);
+let fillTimer = null;
+let beltStopTimer = null;
+
+function runBelt(ms = 700) {
+  beltEl.classList.add("moving");
+  clearTimeout(beltStopTimer);
+  beltStopTimer = setTimeout(() => beltEl.classList.remove("moving"), ms);
 }
 
-// A copy of the scanned tag tumbles off screen; a fresh one drops into its slot
-function knockOff(tag) {
-  const rect = tag.getBoundingClientRect();
-  const faller = tag.cloneNode(true);
+// FLIP: measure, change the DOM, then animate everything from where it was
+function flip(mutate) {
+  const els = [...lane.querySelectorAll(".row, .tag")];
+  const before = new Map(els.map((el) => [el, el.getBoundingClientRect()]));
+  mutate();
+  for (const el of els) {
+    if (!el.isConnected) continue;
+    const was = before.get(el), now = el.getBoundingClientRect();
+    const dx = was.left - now.left, dy = was.top - now.top;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) continue;
+    el.animate(
+      [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "translate(0, 0)" }],
+      { duration: 450, easing: "cubic-bezier(.3, .7, .4, 1)", composite: "add" },
+    );
+  }
+  runBelt();
+}
+
+function makeRow() {
+  const row = document.createElement("div");
+  if (itemsLeftForCustomer === 0) {
+    itemsLeftForCustomer = randInt(...CUSTOMER_ITEMS);
+    row.className = "row divider";
+    row.innerHTML = `<div class="bar">🛑 NEXT CUSTOMER 🛑</div>`;
+    return row;
+  }
+  const n = Math.min(randInt(1, 4), itemsLeftForCustomer);
+  itemsLeftForCustomer -= n;
+  row.className = "row pile";
+  for (let i = 0; i < n; i++) row.appendChild(makeTag(pick(Math.random, KIND_WEIGHTS)));
+  return row;
+}
+
+function spawnRow() {
+  const row = makeRow();
+  lane.appendChild(row);
+  // Slide in from above the top of the belt
+  const from = -(row.offsetTop + row.offsetHeight + 40);
+  row.animate([{ transform: `translateY(${from}px)` }, { transform: "translateY(0)" }],
+    { duration: 900, easing: "cubic-bezier(.25, .6, .35, 1)" });
+  runBelt(900);
+  markFront();
+}
+
+// Keep piles coming, a little apart, while there's room at the top of the belt
+function fillBelt() {
+  if (fillTimer) return;
+  const top = lane.lastElementChild;
+  const free = top ? top.offsetTop : lane.clientHeight;
+  if (free < ROOM_FOR_ROW) return;
+  spawnRow();
+  fillTimer = setTimeout(() => { fillTimer = null; fillBelt(); }, randInt(500, 1100));
+}
+
+// When the divider reaches the cashier, that customer is done: print their
+// receipt, then take the divider off the belt so the next customer moves up.
+function markFront() {
+  const front = lane.firstElementChild;
+  if (!front?.classList.contains("divider") || front.classList.contains("ready")) return;
+  front.classList.add("ready");
+  setTimeout(() => {
+    if (!front.isConnected) return;
+    if (items.length) checkout();
+    setTimeout(() => front.isConnected && knockOff(front.querySelector(".bar")), 900);
+  }, 500);
+}
+
+// A copy of the scanned thing tumbles off screen; the belt closes the gap
+function knockOff(el) {
+  const rect = el.getBoundingClientRect();
+  const w = el.offsetWidth, h = el.offsetHeight; // unrotated size
+  const faller = el.cloneNode(true);
   faller.classList.add("falling");
   Object.assign(faller.style, {
-    left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px`,
+    left: `${rect.left + rect.width / 2 - w / 2}px`, top: `${rect.top + rect.height / 2 - h / 2}px`,
+    width: `${w}px`, height: `${h}px`,
   });
-  faller.style.setProperty("--spin", `${(Math.random() < 0.5 ? -1 : 1) * (25 + Math.random() * 50)}deg`);
-  faller.style.setProperty("--drift", `${(Math.random() - 0.5) * 300}px`);
+  faller.style.setProperty("--spin", `${(Math.random() < 0.5 ? -1 : 1) * r(25, 75)}deg`);
+  faller.style.setProperty("--drift", `${r(-150, 150)}px`);
   document.body.appendChild(faller);
   faller.addEventListener("animationend", () => faller.remove());
 
-  const fresh = makeTag(tag.dataset.kind, tag.style.getPropertyValue("--c"));
-  fresh.classList.add("arriving");
-  fresh.addEventListener("animationend", () => fresh.classList.remove("arriving"), { once: true });
-  tag.replaceWith(fresh);
+  flip(() => {
+    const row = el.closest(".row");
+    el.remove();
+    if (row && !row.querySelector(".tag, .bar")) row.remove();
+  });
+  markFront();
+  setTimeout(fillBelt, 300);
+}
+
+function resetBelt() {
+  clearTimeout(fillTimer);
+  fillTimer = null;
+  lane.innerHTML = "";
+  itemsLeftForCustomer = randInt(...CUSTOMER_ITEMS);
+  fillBelt();
 }
 
 // Scanners sometimes add/drop a leading 0 or check digit, so match loosely
 function findTag(code) {
-  return [...shelf.children].find((t) => {
+  return [...lane.querySelectorAll(".tag")].find((t) => {
     const c = t.dataset.code;
     if (c === code) return true;
     if (code.length < 10) return false;
@@ -337,7 +428,6 @@ let scansSinceRick = RICKROLL_COOLDOWN;
 
 function handleScan(code) {
   if (!rickEl.hidden) { rickUnmute() || closeRick(); return; }
-  if (code === CHECKOUT_CODE) { checkout(); return; }
 
   const tag = findTag(code);
   const item = itemFor(tag ? tag.dataset.code : code); // same item as the emoji on the tag
@@ -369,7 +459,6 @@ function handleScan(code) {
 }
 
 // ---- Receipt printer ----------------------------------------------------------
-const CHECKOUT_CODE = "PAY";
 const printerEl = document.getElementById("printer");
 let printing = false;
 
@@ -532,23 +621,22 @@ window.addEventListener("keydown", (e) => {
 });
 
 // ---- Buttons ----------------------------------------------------------------
-// Clicking a tag scans it (handy for testing without a scanner)
-shelf.addEventListener("click", (e) => {
-  const tag = e.target.closest(".tag");
-  if (tag) handleScan(tag.dataset.code);
+// Clicking a barcode scans it (handy for testing without a scanner)
+lane.addEventListener("click", (e) => {
+  const target = e.target.closest("[data-code]");
+  if (target) handleScan(target.dataset.code);
 });
 document.getElementById("shuffle").addEventListener("click", (e) => {
-  renderShelf();
+  resetBelt();
   e.currentTarget.blur(); // so a scanner's Enter doesn't re-click it
 });
 document.getElementById("clear").addEventListener("click", (e) => {
   checkout();
   e.currentTarget.blur();
 });
-document.getElementById("pay-tag").addEventListener("click", checkout);
-JsBarcode("#pay-barcode", CHECKOUT_CODE, { format: "CODE128", width: 4, height: 70, margin: 10, fontSize: 16 });
+window.addEventListener("resize", () => fillBelt());
 
-renderShelf();
+fillBelt();
 
 // Handy for testing: rickroll() in the console, or simulate a scan:
 window.scanTest = handleScan;
