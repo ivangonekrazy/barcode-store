@@ -58,28 +58,16 @@ main {
 #belt.moving { animation: belt .35s linear infinite; }
 @keyframes belt { to { background-position: 0 0, 0 42px; } }
 
-/* Cashier end: a steel stop bar, then the scanner window with its laser line */
+/* Plain steel stop bar where the piles come to rest */
 #belt::after {
-  content: "▲ SCAN HERE ▲";
+  content: "";
   position: absolute;
-  left: 0; right: 0; bottom: 0;
-  height: var(--stop);
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding-bottom: 10px;
-  font-size: 1rem;
-  letter-spacing: .2em;
-  color: #ff5a5f;
-  border-top: 10px solid #9aa0a6;
-  background:
-    linear-gradient(transparent calc(50% - 2px), rgba(255, 40, 40, .9) 50%, transparent calc(50% + 2px)),
-    radial-gradient(ellipse at 50% 50%, rgba(255, 60, 60, .25), transparent 60%),
-    linear-gradient(#1c2a33, #0d1419);
+  left: 0; right: 0;
+  bottom: calc(var(--stop) - 10px);
+  height: 10px;
+  background: #9aa0a6;
   pointer-events: none;
-  animation: laser 1.2s ease-in-out infinite alternate;
 }
-@keyframes laser { from { filter: brightness(.8); } to { filter: brightness(1.25); } }
 
 #lane {
   position: absolute;
