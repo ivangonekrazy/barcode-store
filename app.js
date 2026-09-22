@@ -215,7 +215,7 @@ let total = 0;
 let scansSinceRick = RICKROLL_COOLDOWN;
 
 function handleScan(code) {
-  if (!rickEl.hidden) { closeRick(); return; }
+  if (!rickEl.hidden) { rickUnmute() || closeRick(); return; }
 
   const tag = findTag(code);
   const item = itemFor(tag ? tag.dataset.code : code); // same item as the emoji on the tag
@@ -251,18 +251,62 @@ function handleScan(code) {
 
 // ---- Rickroll ---------------------------------------------------------------
 const rickEl = document.getElementById("rickroll");
-const videoEl = document.getElementById("video");
+const videoWrap = document.getElementById("video-wrap");
+const soundHint = document.getElementById("sound-hint");
+const RICK_ID = "dQw4w9WgXcQ";
+let player = null;
 
 function rickroll() {
-  videoEl.innerHTML =
-    `<iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&controls=0&rel=0"
-      allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
   rickEl.hidden = false;
+  soundHint.hidden = true;
+  videoWrap.innerHTML = "<div></div>";
+  const target = videoWrap.firstChild;
+
+  if (!window.YT?.Player) { // API didn't load; plain embed as a fallback
+    target.outerHTML = `<iframe src="https://www.youtube.com/embed/${RICK_ID}?autoplay=1&controls=0&rel=0&playsinline=1"
+      allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+    return;
+  }
+  player = new YT.Player(target, {
+    videoId: RICK_ID,
+    playerVars: { autoplay: 1, controls: 0, rel: 0, playsinline: 1, modestbranding: 1 },
+    events: {
+      onReady: (e) => {
+        e.target.unMute();
+        e.target.setVolume(100);
+        e.target.playVideo();
+        // If the browser blocked playback with sound, play muted and ask for a tap/scan
+        setTimeout(() => {
+          if (player === e.target && player.getPlayerState() !== YT.PlayerState.PLAYING) {
+            player.mute();
+            player.playVideo();
+            soundHint.hidden = false;
+          }
+        }, 1000);
+      },
+    },
+  });
 }
+
+// Returns true if this press was used to turn sound on (so it shouldn't close)
+function rickUnmute() {
+  if (!player || soundHint.hidden) return false;
+  player.unMute();
+  player.setVolume(100);
+  player.playVideo();
+  soundHint.hidden = true;
+  return true;
+}
+
 function closeRick() {
   rickEl.hidden = true;
-  videoEl.innerHTML = ""; // stops the video
+  player?.destroy();
+  player = null;
+  videoWrap.innerHTML = ""; // stops the video
 }
+rickEl.addEventListener("click", (e) => {
+  if (e.target.id !== "close-rick") rickUnmute();
+});
 document.getElementById("close-rick").addEventListener("click", closeRick);
 
 // ---- Scanner input (scanner = fast keyboard + Enter) ------------------------
