@@ -216,7 +216,7 @@ function dropAway(el) {
   const w = el.offsetWidth, h = el.offsetHeight; // unrotated size
   const faller = el.cloneNode(true);
   faller.removeAttribute("id");
-  faller.classList.remove("swap", "arrive");
+  faller.classList.remove("swap", "arrive", "rickrolled");
   faller.classList.add("falling");
   Object.assign(faller.style, {
     left: `${rect.left + rect.width / 2 - w / 2}px`, top: `${rect.top + rect.height / 2 - h / 2}px`,
@@ -594,8 +594,35 @@ const soundHint = document.getElementById("sound-hint");
 const RICK_ID = "dQw4w9WgXcQ";
 let player = null;
 
+// The customer can't believe it either
+const RICK_FACES = ["😱", "🤣", "😂", "🤯", "😳", "🥳", "😝", "🤪", "😆", "😲"];
+const AFTER_RICK_FACES = ["😅", "🙄", "😤", "😵", "🤭", "😑"];
+let rickFaceTimer = null;
+
+function customerRickReact() {
+  customerEl.classList.remove("swap", "arrive");
+  customerEl.classList.add("rickrolled");
+  customerEl.textContent = "😱";
+  clearInterval(rickFaceTimer);
+  rickFaceTimer = setInterval(() => {
+    let face;
+    do face = pick(Math.random, RICK_FACES); while (face === customerEl.textContent);
+    customerEl.textContent = face;
+  }, 900);
+}
+function customerRickRecover() {
+  if (!customerEl.classList.contains("rickrolled")) return;
+  clearInterval(rickFaceTimer);
+  customerEl.classList.remove("rickrolled");
+  customerEl.textContent = pick(Math.random, AFTER_RICK_FACES);
+  customerEl.classList.remove("swap", "arrive");
+  void customerEl.offsetWidth;
+  customerEl.classList.add("swap");
+}
+
 function rickroll() {
   rickEl.hidden = false;
+  customerRickReact();
   soundHint.hidden = true;
   videoWrap.innerHTML = "<div></div>";
   const target = videoWrap.firstChild;
@@ -638,6 +665,7 @@ function rickUnmute() {
 
 function closeRick() {
   rickEl.hidden = true;
+  customerRickRecover();
   player?.destroy();
   player = null;
   videoWrap.innerHTML = ""; // stops the video

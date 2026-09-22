@@ -74,6 +74,15 @@ main {
   0%   { transform: translate(-160px, -40px) rotate(-40deg) scale(.6); opacity: 0; }
   100% { transform: none; opacity: 1; }
 }
+/* Rickroll: pop up above the video overlay and dance along */
+.customer.rickrolled {
+  z-index: 11;
+  animation: dance .45s ease-in-out infinite alternate;
+}
+@keyframes dance {
+  from { transform: translateY(0) rotate(-12deg); }
+  to   { transform: translateY(-10px) rotate(12deg) scale(1.08); }
+}
 .customer.swap { animation: face .4s cubic-bezier(.3, 1.6, .5, 1); }
 @keyframes face {
   0%   { transform: scale(.4) rotate(-25deg); }
