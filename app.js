@@ -644,27 +644,95 @@ const subtitlesEl = document.getElementById("subtitles");
 let announceTimer = null;
 let paBus = null;
 
+// Mad-libs: {slot} gets a fresh random word each time; a numbered slot like
+// {food1} is the same word everywhere it appears in that announcement.
+const SLOTS = {
+  name: ["Kevin", "Grandma", "Captain Crunkle", "Aunt Gertie", "Mr. Wobbly", "Sir Noodleton", "Barbara",
+    "Doctor Bonkers", "a very small wizard", "Uncle Wiggles", "Professor Plum", "the manager",
+    "a raccoon in a trench coat", "Mrs. Pickles", "Big Steve", "Tiny Steve", "the Easter Bunny"],
+  animal: ["rubber duck", "goat", "llama", "penguin", "raccoon", "hamster", "giraffe", "octopus",
+    "chicken", "dinosaur", "squirrel", "sloth", "walrus", "flamingo", "pug", "hedgehog"],
+  place: ["produce", "the bakery", "frozen foods", "the parking lot", "the cereal aisle", "customer service",
+    "the deli", "the roof", "the ball pit", "the bathroom", "the cheese cave", "the snack aisle", "the lobster tank"],
+  food: ["bananas", "pickles", "meatballs", "marshmallows", "noodles", "pancakes", "tacos", "cheese puffs",
+    "jelly beans", "muffins", "waffles", "grapes", "potatoes", "fish sticks", "donuts", "hot dogs", "gummy worms"],
+  adj: ["sticky", "squishy", "suspicious", "glittery", "grumpy", "extremely loud", "slightly haunted", "wobbly",
+    "invisible", "spicy", "soggy", "sparkly", "ticklish", "enormous", "very tiny", "stinky", "fancy"],
+  verb: ["dancing", "singing opera", "juggling", "napping", "doing cartwheels", "bouncing", "moonwalking",
+    "sneezing", "knitting", "skateboarding", "doing karate", "yodeling", "breakdancing", "hula hooping"],
+  thing: ["shopping cart", "mop", "trombone", "bouncy castle", "disco ball", "canoe", "bowling ball",
+    "unicycle", "toaster", "wig", "kazoo", "pogo stick", "rubber chicken", "tuba"],
+  sound: ["honking", "beeping", "quacking", "burping", "whistling", "mooing", "kazoo music", "giggling"],
+  number: ["three", "seven", "twelve", "forty", "ninety-nine", "a hundred", "a million", "eleven", "a bajillion"],
+  aisle: ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"],
+  item: () => itemFor(randomDigits(12)).name.replace(/,.*/, ""), // a made-up product
+};
+
 const ANNOUNCEMENTS = [
-  "Clean-up on aisle five. Someone dropped the Moon Noodles.",
-  "Attention shoppers: the Dino Nuggets have escaped. Please do not feed them.",
-  "Will the owner of a blue shopping cart please come get it. It misses you.",
-  "Today only: buy one Pickle Bubblegum, get one... also Pickle Bubblegum.",
-  "Attention shoppers, the store is closing in five minutes. Just kidding! We never close.",
-  "Could Grandma please come to the front? Grandma to the front, please.",
-  "Reminder: please do not ride the conveyor belt. That means you, Kevin.",
-  "Lost child at customer service. He says his name is Captain Crunkle.",
-  "Special in the frozen aisle: slightly less frozen Ice Pops.",
-  "Attention: a rubber duck is loose in produce. Approach with caution.",
+  "Clean-up on aisle {aisle}. Someone dropped the {food}.",
+  "Clean-up on aisle {aisle}. The {food} are {adj} again.",
+  "Attention shoppers: a {animal} is loose in {place}. Please do not feed it {food}.",
+  "Will the owner of a {adj} {thing} please come to {place}. It misses you.",
+  "Today only: buy one {item1}, get one... also {item1}.",
+  "Could {name1} please come to the front? {name1} to the front, please.",
+  "Reminder: please do not ride the conveyor belt. That means you, {name}.",
+  "Lost child at customer service. They say their name is {name}.",
+  "Special in the frozen aisle: slightly less frozen {food}.",
   "The cashier on lane one is doing a GREAT job. Let's hear it for the cashier!",
-  "Attention shoppers: the floor is lava in aisle seven. Please hop carefully.",
-  "Would the person who ordered forty pounds of Slime please pick it up. It's... moving.",
-  "Now playing on aisle nine: absolutely nothing. Enjoy the silence.",
-  "Free samples of Broccoli Toothpaste by the bakery. Nobody wants them. Please help.",
-  "Attention shoppers: our bananas are now extra bendy. At no extra cost.",
+  "Attention shoppers: the floor is lava in aisle {aisle}. Please hop carefully.",
+  "Would the person who ordered {number} pounds of {food} please pick them up. They're... moving.",
+  "Free samples of {adj} {food} by the bakery. Nobody wants them. Please help.",
+  "Attention shoppers: our {food} are now extra {adj}. At no extra cost.",
+  "There is a {animal} {verb} in {place}. Nobody knows why. Please enjoy the show.",
+  "Price check on {item}. Price check, please.",
+  "We found a {adj} {thing} in {place}. If it's yours... we have questions.",
+  "Congratulations to {name}, winner of our most {adj} shopper contest. I guess.",
+  "Please stop {verb} in aisle {aisle}. This is a grocery store.",
+  "New in the bakery: {food1} flavored {food2}. We're sorry.",
+  "The {animal} in {place} has asked for a raise. We said no.",
+  "Attention shoppers: we are out of {food}. We are also out of patience.",
+  "Would {name} please return the {thing} to {place}. Everyone saw you.",
+  "It is {number} o'clock. Time for the {animal} parade in aisle {aisle}.",
+  "Today's weather in {place}: cloudy, with a chance of {food}.",
+  "Our {adj} {thing} sale ends in {number} minutes. Or maybe it already ended. I don't know.",
+  "If you hear {sound} coming from {place}, that's normal. Please do not investigate.",
+  "{name1} to the deli. {name1}, your {food} are ready. They have been ready for a very long time.",
+  "Attention: the self checkout is {verb} again. Please give it some space.",
+  "Reminder: shopping carts are not bumper cars. Or {thing}s.",
+  "Good news, shoppers: the {animal1} has been found. Bad news: the {animal1} found the {food}.",
+  "This is your manager speaking. I just wanted to say... {adj} {food}. That is all.",
+  "Someone left their {thing} in aisle {aisle}. It is now {verb}.",
+  "Please welcome our newest employee, a {adj} {animal}. Be nice to them.",
+  "Shoppers, please remember: {food} are not a hat.",
+  "Due to a mix up, all {food1} are now {food2}, and all {food2} are now {food1}.",
+  "Attention: {number} {animal}s have been spotted near {place}. Remain calm. Or don't.",
+  "Would whoever is {verb} in {place} please keep it down. Some of us are trying to nap.",
+  "Lost and found update: we have {number} {thing}s and one very confused {animal}.",
+  "{name} says the {food} in aisle {aisle} are {adj}. {name} is not wrong.",
+  "Today's special: {item}. Now more {adj} than ever. Probably.",
+  "Please do not tickle the {animal}. It is working.",
+  "Our {thing} is broken again. If you know how to fix a {thing}, please come to {place}.",
+  "Attention shoppers: {place} is closed for {verb} practice. Thank you for your patience.",
+  "I have been doing these announcements for {number} years. Anyway. {food} are on sale.",
 ];
-const randomAnnouncement = () => Math.random() < 0.25
-  ? `Price check on ${itemFor(randomDigits(12)).name.replace(/,.*/, "")}. Price check, please.`
-  : pick(Math.random, ANNOUNCEMENTS);
+
+function fillTemplate(template) {
+  const same = {};
+  const text = template.replace(/\{([a-z]+)(\d?)\}/g, (_, type, n) => {
+    const key = type + n;
+    if (n && same[key]) return same[key];
+    const slot = SLOTS[type];
+    let word = typeof slot === "function" ? slot() : pick(Math.random, slot);
+    // keep {food1} and {food2} (etc.) different from each other
+    if (n) while (Object.entries(same).some(([k, v]) => k.startsWith(type) && v === word)) word = pick(Math.random, slot);
+    if (n) same[key] = word;
+    return word;
+  });
+  return text
+    .replace(/\b([Aa]) ([aeiou])/g, "$1n $2")                                        // a invisible -> an invisible
+    .replace(/(^|[.!?]\s+)([a-z])/g, (_, before, c) => before + c.toUpperCase());   // capitalize sentences
+}
+const randomAnnouncement = () => fillTemplate(pick(Math.random, ANNOUNCEMENTS));
 
 // Tinny speaker (band-limited + a little crunch) feeding a long, echoey reverb
 function getPaBus() {
