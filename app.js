@@ -927,6 +927,24 @@ window.addEventListener("keydown", (e) => {
   }
 });
 
+// ---- Focus overlay ----------------------------------------------------------------
+// The scanner types into whichever window has focus. If it isn't us, say so.
+const focusOverlay = document.getElementById("focus-overlay");
+function checkFocus() {
+  // hasFocus() is still true when focus is inside an iframe (the YouTube player),
+  // but keystrokes go to the iframe then, not to us
+  focusOverlay.hidden = document.hasFocus() && !(document.activeElement instanceof HTMLIFrameElement);
+}
+window.addEventListener("focus", checkFocus);
+window.addEventListener("blur", checkFocus);
+setInterval(checkFocus, 500); // catches focus sneaking into the YouTube iframe, etc.
+focusOverlay.addEventListener("click", () => {
+  document.activeElement?.blur(); // pull focus back out of an iframe
+  window.focus();
+  checkFocus();
+});
+checkFocus();
+
 // ---- Buttons ----------------------------------------------------------------
 // Clicking a barcode scans it (handy for testing without a scanner)
 lane.addEventListener("click", (e) => {
