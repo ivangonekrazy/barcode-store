@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Scan-O-Mart</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>🛒 Scan-O-Mart 🛒</h1>
+    <button id="shuffle" type="button">🔄 New barcodes</button>
+  </header>
+
+  <main>
+    <section id="shelf" aria-label="Barcodes to scan"></section>
+
+    <aside id="register">
+      <div id="display" class="idle">
+        <div id="item-name">Scan something!</div>
+        <div id="item-price">$0.00</div>
+      </div>
+      <h2>Receipt</h2>
+      <ol id="receipt"></ol>
+      <div id="total-row">
+        <span>TOTAL</span><span id="total">$0.00</span>
+      </div>
+      <button id="clear" type="button">🧾 New customer</button>
+    </aside>
+  </main>
+
+  <div id="rickroll" hidden>
+    <div class="banner">🎵 SPECIAL DEAL! 🎵</div>
+    <div class="video-wrap"><div id="video"></div></div>
+    <button id="close-rick" type="button">✖ Back to shopping</button>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
